@@ -1,4 +1,4 @@
 hostroot;admin
-m1;admin,tatonnol,moussouc
-m2;admin,moussouc
-m3;admin,tervic,moussouc
+m1;,admin,tatonnol,moussouc,
+m2;,admin,moussouc,
+m3;,admin,tervic,moussouc,
