@@ -1,13 +1,11 @@
 #!/bin/bash
-
-# Variables permettant de configurer l'emplacement et nom des fichiers utilisés par ce script
 chemin=$(pwd)
-fichier_connexion=$chemin/connexion
-fichier_machine=$chemin/machine
-fichier_user=$chemin/user
-
-
-
+echo $chemin
+fichier_user=$chemin/bash_lo14/user
+echo $fichier_user
+fichier_machine=$chemin/bash_lo14/machine
+echo $fichier_machine
+fichier_connexion=$chemin/bash_lo14/connexion
 
 
 function error {
@@ -34,8 +32,6 @@ function error {
 	esac
 }
 
-function help{
-}
 
 function argCheck { # Fonction permettant de vérifier le nombre d'arguments
 	# Demande comme argument :
@@ -100,10 +96,8 @@ function accessCheck {
 		machine="$2"
 		while read ligne
 			do
-                echo "$ligne"
 				if [ $machine == $(echo $ligne | sed 's/^.*;\(.*\);.*$/\1/g') ]; then # On trouve la machine dans le fichier 
-                    echo "trouvé"
-					access=$(echo $ligne | sed 's/^.*;\(.*\)$/\1/g' | sed "s/^.*,$user,.*$/,$user,/g") ; # On récupère sa liste d'accès et on essaie d'y trouver le nom d'utilisateur avec lequel l'utilisateur veut accéder à la machine
+                    access=$(echo $ligne | sed 's/^.*;\(.*\)$/\1/g' | sed "s/^.*,$user,.*$/,$user,/g") ; # On récupère sa liste d'accès et on essaie d'y trouver le nom d'utilisateur avec lequel l'utilisateur veut accéder à la machine
 					if [ ",$user," == $access ]; then 
 						echo "Accès authorisé à $machine" ;
 						return 1;
@@ -138,17 +132,6 @@ function passwordCheck {
 	fi
 }
 
-function addConnexion {
-	argCheck $# 1
-	if [ $? == 1 ]; then
-	fi
-}
-
-function removeConnexion {
-	argCheck $# 1
-	if [[ $? == 1 ]] ; then
-	fi
-}
 
 # Cette fonction implémente un serveur.  
 # La fonction doit être invoqué avec les arguments :                   
@@ -168,12 +151,15 @@ function runMachine {
 
 	# on crée le tube nommé
 
-	[ -e "FIFO" ] || mkfifo "$fifo"
+	[ -e "fifo" ] || mkfifo "$fifo"
 
 	accept-loop $port $fifo
 }
 
-function accept-loop() {
+function nettoyage { rm -f "$fifo"; }
+
+
+function accept-loop {
 	# Demande comme argument : 
 	#	1) le port sur lequel le serveur attend ses clients
 	#	2) le tunnel utilisé pour lancer le serveur
@@ -183,6 +169,10 @@ function accept-loop() {
 		do
 			interaction < "$fifo" | netcat -l -p "$port" > "$fifo"
 		done
+}
+
+function commande-non-comprise {
+   echo "Le serveur ne peut pas interprêter cette commande"
 }
 
 # La fonction interaction lit les commandes du client sur entrée standard 
@@ -196,7 +186,7 @@ function accept-loop() {
 #                                                                              
 # si elle existe; sinon elle envoie une réponse d'erreur.                    
 
-function interaction() {
+function interaction {
     local cmd args
     while true; do
 	read cmd args || exit -1
@@ -209,49 +199,83 @@ function interaction() {
     done
 }
 
+function commande-test() {
+       echo test
+}
+
 function commande-rvsh {
 	# Demande comme argument : 
 	#	1) la commande -connect ou -admin
 	#	2) le nom d'utilisateur avec lequel l'utilisateur veut se connecter, 
 	#	3) le nom de la machine à laquelle il veut se connecter
+    echo "here"
 	continuer=0
 	if [[ $1 == "-admin" ]] ; then
-		argCheck $# 1
+        echo $#
+        echo "argcheck"
+        argCheck $# 1
 		if [[ $? -eq 1 ]] ; then
-			$user="admin"
-			$machine="hostroot"
-			$continuer=1
+            echo "hey"
+			user="admin"
+			machine="hostroot"
+			continuer=1
 		fi
 	else
 		argCheck $# 3
 		if [[ $? -eq 1 ]] ; then
-			$user="$2"
-			$machine="$3"
-			$continuer=1
+			user="$2"
+			machine="$3"
+			continuer=1
 		fi
 	fi
 
-	if [[ $continuer -eq 1 ]] ; then
-			userCheck $user
-			if [[ $? -eq 1 ]] ; then
-				passwordCheck $user
-				if [[ $? -eq 1 ]] ; then
-					machineCheck $machine
-					if [[ $? -eq 1 ]] ; then
-						accessCheck $user $machine
-						port=$(grep "$machine" $fichier_machine | sed "s/\(.*\);$machine;.*/\1/")
-						port=(($port+8080))
-						if [[ $(grep "$machine" $fichier_connexion ) != "" ]] ; then
-							runMachine $port $machine &
+    echo "$user"
+    echo "$machine"
+    echo "$continuer"
 
-						fi
-						netcat localhost $port				
-					fi
-				fi
-			fi
+	if [[ $continuer -eq 1 ]] ; then
+        echo "userCheck"
+		userCheck $user
+		if [[ $? -eq 1 ]] ; then
+            echo "passwordcheck"
+            passwordCheck $user
+            if [[ $? -eq 1 ]] ; then
+                echo "machinecheck"
+                machineCheck $machine
+                if [[ $? -eq 1 ]] ; then
+                    echo "accesscheck"
+                    accessCheck $user $machine
+                    if [[ $? -eq 1 ]] ; then
+                        echo "salut"
+                        port=$(grep "$machine" $fichier_machine | sed "s/\(.*\);.*;.*/\1/")
+                        echo $port
+                        declare -i port=port+8080
+                        echo $port
+                        if [[ $(grep "$machine" $fichier_connexion) != "\n" ]] ; then
+                            echo "yo"
+                            runMachine $port $machine &
+                        else
+                            echo "ya"
+                        fi
+                        netcat localhost $port
+                    fi
+                fi
+            fi
+        fi
 	fi
 }
 
-if [[ ( "$1" == "-admin" && $# -ne 1 ) || ( "$1" == "-connect" && $# -ne 3 ) ]] ; then
-	commande-rvsh $1 $2 $3
+echo "$1"
+
+
+if [[ "$1" == "-admin" ]] ; then
+    echo "youhou"
+	commande-rvsh $1
+elif [[ "$1" == "-connect" ]] ; then
+    commande-rvsh $1 $2 $3
+else
+    echo "Commande non reconnue"
 fi
+
+# Bonjour,Je suis en train de faire un projet de réseau, et je bloque sur une partie. Je dois faire un serveur qui permet de se connecter à des machines distantes. Pour cela, j'ai un fichier qui contient les machines disponibles, et un autre qui contient les utilisateurs. J'ai aussi un fichier qui contient les accès aux machines. J'ai donc fait un script qui permet de se connecter à une machine distante, mais je ne sais pas comment faire pour que le serveur se lance sur la machine distante. Voici mon script :Merci d'avance pour votre aide
+
