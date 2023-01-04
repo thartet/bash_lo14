@@ -6,9 +6,14 @@ fichier_connexion=$chemin/connexion
 fichier_machine=$chemin/machine
 fichier_user=$chemin/user
 
+source $chemin/commande_admin.sh
+source $chemin/commande_connect.sh
 
-
-
+if [[ "$1" == "-admin" || "$1" == "-connect" ]] ; then
+	connexion "$@"
+else
+	error 1
+fi
 
 function error {
 	case $1 in
@@ -37,7 +42,10 @@ function error {
 function help{
 }
 
-function argCheck { # Fonction permettant de vérifier le nombre d'arguments
+## Fonctions pour vérifier les informations entrées par l'utilisateur
+
+# Fonction permettant de vérifier le nombre d'arguments
+function argCheck { 
 	# Demande comme argument :
 	#	1) Le nombre d'arguments donné par l'utilisateur
 	#	2) Le nombre d'arguments nécessaires à la fonction appelant argCheck
@@ -49,7 +57,8 @@ function argCheck { # Fonction permettant de vérifier le nombre d'arguments
 	fi
 }
 
-function userCheck { # Fonction permettant de vérifier qu'un utilisateur existe
+# Fonction permettant de vérifier qu'un utilisateur existe
+function userCheck { 
 	# Demande comme argument : 
 	#	1) le nom d'utilisateur avec lequel l'utilisateur veut se connecter
 	echo "Vérification de l'existence de l'utilisateur"
@@ -58,7 +67,7 @@ function userCheck { # Fonction permettant de vérifier qu'un utilisateur existe
 		user="$1"
 		while read ligne
 			do
-				nom_user=$(echo $ligne | sed 's/^\(.*\);.*;.*;.*$/\1/g');
+				nom_user=$(echo $ligne | sed 's/^\(.*\);.*;.*;.*;.*$/\1/g');
 				if [ $user == $nom_user ]; then 
 					echo "Existence de l'utilisateur confirmée";
 					return 1;
@@ -69,7 +78,8 @@ function userCheck { # Fonction permettant de vérifier qu'un utilisateur existe
 	fi
 }
 
-function machineCheck { # Fonction permettant de vérifier qu'un utilisateur existe
+# Fonction permettant de vérifier qu'une machine existe
+function machineCheck { 
 	# Demande comme argument : 
 	#	1) le nom de la machine à laquelle l'utilisateur veut se connecter
     echo "Vérification de l'existence de la machine"
@@ -89,6 +99,7 @@ function machineCheck { # Fonction permettant de vérifier qu'un utilisateur exi
 	fi
 }
 
+# Fonction permettant de vérifier que l'utilisateur a les droits d'accès à la machine
 function accessCheck {
 	# Demande comme argument : 
 	#	1) le nom d'utilisateur avec lequel l'utilisateur veut se connecter, 
@@ -115,6 +126,7 @@ function accessCheck {
 	fi
 }
 
+# Fonction permettant de vérifier que le mot de passe entré est correct
 function passwordCheck {
 	# Demande comme argument : 
 	#	1) le nom d'utilisateur avec lequel l'utilisateur veut se connecter
@@ -124,9 +136,9 @@ function passwordCheck {
 		read -sp "Entrez le mot de passe de $user : " password
 		while read ligne
 			do
-                nom_user=$(echo $ligne | sed 's/^\(.*\);.*;.*;.*$/\1/g')
+                nom_user=$(echo $ligne | sed 's/^\(.*\);.*;.*;.*;.*$/\1/g')
 				if [ $user == $nom_user ] ; then # On trouve le user dans le fichier 
-					correct_password=$(echo $ligne | sed 's/^.*;\(.*\);.*;.*$/\1/g') ; # On récupère le mot de passe correct
+					correct_password=$(echo $ligne | sed 's/^.*;\(.*\);.*;.*;.*$/\1/g') ; # On récupère le mot de passe correct
 					if [ "$password" == "$correct_password" ] ; then 
 						echo "Mot de passe correct" ;
 						return 1;
@@ -138,120 +150,278 @@ function passwordCheck {
 	fi
 }
 
+# Fonction premettant de convertir la date en timestamp
+function dateToTimestamp {
+	date=$(date)
+	year=$(echo $date | cut -d " " -f 6)
+	month=$(echo $date | cut -d " " -f 2)
+	day=$(echo $date | cut -d " " -f 3)
+	hour=$(echo $date | cut -d " " -f 4 | cut -d ":" -f 1)
+	minute=$(echo $date | cut -d " " -f 4 | cut -d ":" -f 2)
+	seconde=$(echo $date | cut -d " " -f 4 | cut -d ":" -f 3)
+	
+	case $month in
+		Jan)
+			month=01;;
+		Feb)
+			month=02;;
+		Mar)
+			month=03;;
+		Apr)
+			month=04;;
+		May)
+			month=05;;
+		Jun)
+			month=06;;
+		Jul)
+			month=07;;
+		Aug)
+			month=08;;
+		Sep)
+			month=09;;
+		Oct)
+			month=10;;
+		Nov)
+			month=11;;
+		Dec)
+			month=12;;
+	esac
+	
+	echo "$year$month$day$hour$minute$seconde"
+}
+
+# Fonction permettant d'ajouter une connexion dans le fichier de connexion
 function addConnexion {
-	argCheck $# 1
-	if [ $? == 1 ]; then
+	argCheck $# 2
+	if [ $? -ne 1 ]; then
+		return 0
 	fi
+
+	terminal=$(tty | sed 's/\//_/g')
+	user=$1
+	machine=$2
+	date=$(dateToTimestamp)
+
+	echo "$terminal;$user;$machine;$date" >> connexion
+	
 }
 
+# Fonction permettant de supprimer une connexion dans le fichier de connexion
 function removeConnexion {
-	argCheck $# 1
-	if [[ $? == 1 ]] ; then
+	argCheck $# 2
+	if [ $? -ne 1 ]; then
+		error 1
+		return 0
 	fi
+
+	terminal=$(tty | sed 's/\//_/g')
+	user=$1
+	machine=$2
+
+	text=$(grep "$terminal;$user;$machine" connexion | tail -1)
+	sed -i "/$text/d" connexion
 }
 
-# Cette fonction implémente un serveur.  
-# La fonction doit être invoqué avec les arguments :                   
-# 	1) le port sur lequel le serveur attend ses clients 
-#	2) le nom de la machine
-function runMachine {
-	if [[ $# -ne 2 ]] ; then
-		echo "usage: $(basename $0) PORT USER"
-		exit -1
-	fi
-	port="$1"
-	machine="$2"
 
-	fifo="/tmp/$machine-fifo-$$"
-
-	trap nettoyage EXIT
-
-	# on crée le tube nommé
-
-	[ -e "FIFO" ] || mkfifo "$fifo"
-
-	accept-loop $port $fifo
-}
-
-function accept-loop() {
-	# Demande comme argument : 
-	#	1) le port sur lequel le serveur attend ses clients
-	#	2) le tunnel utilisé pour lancer le serveur
-	port="$1"
-	fifo="$2"
-	while true; 
-		do
-			interaction < "$fifo" | netcat -l -p "$port" > "$fifo"
-		done
-}
-
-# La fonction interaction lit les commandes du client sur entrée standard 
-# et envoie les réponses sur sa sortie standard. 
-#
-# 	CMD arg1 arg2 ... argn                   
-#                     
-# alors elle invoque la fonction :
-#                                                                            
-#         commande-CMD arg1 arg2 ... argn                                      
-#                                                                              
-# si elle existe; sinon elle envoie une réponse d'erreur.                    
-
-function interaction() {
-    local cmd args
-    while true; do
-	read cmd args || exit -1
-	fun="commande-$cmd"
-	if [[ "$(type -t $fun)" = "function" ]] ; then
-	    $fun $args
-	else
-	    commande-non-comprise $fun $args
-	fi
-    done
-}
-
-function commande-rvsh {
+function connexion {
 	# Demande comme argument : 
 	#	1) la commande -connect ou -admin
 	#	2) le nom d'utilisateur avec lequel l'utilisateur veut se connecter, 
 	#	3) le nom de la machine à laquelle il veut se connecter
-	continuer=0
 	if [[ $1 == "-admin" ]] ; then
 		argCheck $# 1
 		if [[ $? -eq 1 ]] ; then
 			$user="admin"
 			$machine="hostroot"
-			$continuer=1
+		else
+			return 0
 		fi
 	else
 		argCheck $# 3
 		if [[ $? -eq 1 ]] ; then
 			$user="$2"
 			$machine="$3"
-			$continuer=1
+		else
+			return 0
 		fi
 	fi
 
-	if [[ $continuer -eq 1 ]] ; then
-			userCheck $user
-			if [[ $? -eq 1 ]] ; then
-				passwordCheck $user
-				if [[ $? -eq 1 ]] ; then
-					machineCheck $machine
-					if [[ $? -eq 1 ]] ; then
-						accessCheck $user $machine
-						port=$(grep "$machine" $fichier_machine | sed "s/\(.*\);$machine;.*/\1/")
-						port=(($port+8080))
-						if [[ $(grep "$machine" $fichier_connexion ) != "" ]] ; then
-							runMachine $port $machine &
+	# On vérifie que l'utilisateur existe
+	userCheck $user
+	if [[ $? -ne 1 ]] ; then
+		return 0
+	fi
 
-						fi
-						netcat localhost $port				
-					fi
-				fi
-			fi
+	# On vérifie que le mot de passe est correct
+	passwordCheck $user
+	if [[ $? -ne 1 ]] ; then
+		return 0
+	fi
+	
+	# On vérifie que la machine existe
+	machineCheck $machine
+	if [[ $? -eq 1 ]] ; then
+		return 0
+	fi
+
+	# On vérifie que l'utilisateur a le droit d'accéder à la machine
+	accessCheck $user $machine
+	if [[ $? -ne 1 ]] ; then
+		return 0
+	fi
+
+	# On ajoute la connexion dans le fichier de connexion
+	addConnexion $user $machine
+
+	# On piège toutes les sorties de la commande, afin de pouvoir procéder au logout
+	trap logout EXIT
+
+	# On lance la boucle de commande, qui permettra à l'utilisateur de rentrer des commandes
+	while true; do
+		read -p "$user@$machine> " commande
+
+		if [[ $commande == "exit" ]] ; then
+			logout
+		else
+			appelCommande $command "$@"
+		fi
+		
+	done
+	
+}
+
+function appelCommande {
+	commande=$1
+	shift 
+	if [ "$(type -t $commande)" = "function" ]; then
+		"commande-$commande" "$@"
+	elif [ -z "$commande" ]; then
+		echo
+	else
+		commandeInconnue $commande
 	fi
 }
 
-if [[ ( "$1" == "-admin" && $# -ne 1 ) || ( "$1" == "-connect" && $# -ne 3 ) ]] ; then
-	commande-rvsh $1 $2 $3
-fi
+function commandeInconnue {
+	echo "Commande inconnue : $1"
+}
+
+function logout {
+	echo "Déconnexion de $user@$machine"
+	removeConnexion $user $machine $(tty)
+	exit 0
+}
+
+# Fonction permettant de constituer une liste des utilisateurs ayant les accès à une machine
+function viewAccessMachine {
+	argCheck $# 1
+	if [ $? -ne 1 ]; then
+		return 0
+	fi
+
+	machine=$1
+	access=$(grep "$machine" machine | cut -d ";" -f2 | sed 's/,/ /g')
+	echo "Utilisateur ayant accès à la machine $machine :$access"
+}
+
+# Fonction permettant d'ajouter un membre à la liste des utilisateurs ayant les accès à une machine
+function addAccessMachine {
+	argCheck $# 1
+	if [ $? -ne 1 ]; then
+		return 0
+	fi
+
+	machine=$1
+	viewAccessMachine $machine
+
+
+	read -p "Ajouter un utilisateur à la liste des utilisateurs ayant accès à cette machine ? (y/n) " reponse
+	while [ $reponse != "y" ] && [ $reponse != "n" ]; do
+		read -p "Ajouter un utilisateur à la liste des utilisateurs ayant accès à cette machine ? (y/n) " reponse
+	done
+	while [ $reponse == "y" ]; do
+		read -p "Entrer le nom de l'utilisateur à ajouter à cette liste : " user
+
+		userCheck $user
+		if [[ $? -ne 1 ]] ; then
+			return 0
+		fi
+
+		oldAccess=$(grep "$machine" machine | cut -d ";" -f2)
+		newAccess="$oldAccess$user,"
+		sed -i "s/$machine;$oldAccess/$machine;$newAccess/" machine
+
+		read -p "Ajouter un autre utilisateur à la liste des utilisateurs ayant accès à cette machine ? (y/n) " reponse
+		while [ $reponse != "y" ] && [ $reponse != "n" ]; do
+			read -p "Ajouter un autre utilisateur à la liste des utilisateurs ayant accès à cette machine ? (y/n) " reponse
+		done
+	done
+}
+
+# Fonction permettant d'ajouter un membre à la liste des utilisateurs ayant les accès à une machine
+function removeAccessMachine {
+	argCheck $# 1
+	if [ $? -ne 1 ]; then
+		return 0
+	fi
+
+	machine=$1
+	viewAccessMachine $machine
+
+
+	read -p "Supprimer un utilisateur de la liste des utilisateurs ayant accès à cette machine ? (y/n) " reponse
+	while [ $reponse != "y" ] && [ $reponse != "n" ]; do
+		read -p "Supprimer un utilisateur de la liste des utilisateurs ayant accès à cette machine ? (y/n) " reponse
+	done
+	while [ $reponse == "y" ]; do
+		read -p "Entrer le nom de l'utilisateur à supprimer de cette liste : " user
+
+		accessCheck $user $machine
+		if [[ $? -ne 1 ]] ; then
+			return 0
+		fi
+
+		oldAccess=$(grep "$machine" machine | cut -d ";" -f2)
+		newAccess=$(echo $oldAccess | sed "s/$user,//g")
+		sed -i "s/$machine;$oldAccess/$machine;$newAccess/" machine
+
+		read -p "Supprimer un autre utilisateur de la liste des utilisateurs ayant accès à cette machine ? (y/n) " reponse
+		while [ $reponse != "y" ] && [ $reponse != "n" ]; do
+			read -p "Supprimer un autre utilisateur de la liste des utilisateurs ayant accès à cette machine ? (y/n) " reponse
+		done
+	done
+}
+
+
+
+# Fonction permettant d'ajouter une machine dans le fichier machine
+function addMachine {
+	argCheck $# 0
+	if [ $? -ne 1 ]; then
+		return 0
+	fi
+
+	read -p "Nom de la machine : " machine
+	echo "$machine;,admin," >> machine
+
+	access=$(addAccess $machine)
+	
+}
+
+# Fonction permettant de supprimer une machine dans le fichier connexion
+function removeMachine {
+	argCheck $# 0
+	if [ $? -ne 1 ]; then
+		error 1
+		return 0
+	fi
+
+	read -p "Nom de la machine : " machine
+
+	machineCheck $machine
+		if [[ $? -ne 1 ]] ; then
+			return 0
+		fi
+
+	sed -i "/$machine/d" machine
+}
