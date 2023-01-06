@@ -9,11 +9,26 @@ fichier_user=$chemin/user
 source $chemin/commande_admin.sh
 source $chemin/commande_connect.sh
 
-if [[ "$1" == "-admin" || "$1" == "-connect" ]] ; then
-	connexion "$@"
+
+if [[ $1 == "-admin" ]] ; then
+	argCheck $# 1
+	if [[ $? -eq 1 ]] ; then
+		$user="admin"
+		$machine="hostroot"
+		connexion $user $machine
+	fi
+elif [["$1" == "-connect" ]] ; then
+	argCheck $# 3
+	if [[ $? -eq 1 ]] ; then
+		$user="$2"
+		$machine="$3"
+		connexion $user $machine
+	fi
 else
 	error 1
 fi
+
+
 
 function error {
 	case $1 in
@@ -36,11 +51,14 @@ function error {
 			echo "Erreur 7: L'option entrée n'existe pas" > $(tty);;
 		8)
 			echo "Erreur 8: La commande entrée n'existe pas" > $(tty);;
+		9)
+			echo "Erreur 9: L'utilisateur ou la machine que vous avez désigné pour envoyé votre message n'existe pas" > $(tty);;
 	esac
 }
 
 function help {
 }
+
 
 ## Fonctions pour vérifier les informations entrées par l'utilisateur
 
@@ -56,6 +74,7 @@ function argCheck {
 		return 0;
 	fi
 }
+
 
 # Fonction permettant de vérifier qu'un utilisateur existe
 function userCheck { 
@@ -78,6 +97,7 @@ function userCheck {
 	fi
 }
 
+
 # Fonction permettant de vérifier qu'une machine existe
 function machineCheck { 
 	# Demande comme argument : 
@@ -98,6 +118,7 @@ function machineCheck {
 		return 0
 	fi
 }
+
 
 # Fonction permettant de vérifier que l'utilisateur a les droits d'accès à la machine
 function accessCheck {
@@ -126,6 +147,7 @@ function accessCheck {
 	fi
 }
 
+
 # Fonction permettant de vérifier que le mot de passe entré est correct
 function passwordCheck {
 	# Demande comme argument : 
@@ -149,6 +171,25 @@ function passwordCheck {
 			return 0;
 	fi
 }
+
+
+# Fonction permettant de vérifier que l'utilisateur est connecté à la machine
+function connectedCheck {
+	# Demande comme argument :
+	#	1) le nom de l'utilisateur
+	#	2) le nom de la machine
+	user=$1
+	machine=$2
+
+	# On vérifie que l'utilisateur est connecté à la machine
+	if [[ $(grep "$user;$machine" $fichier_connexion) == "" ]] ; then
+		error 9
+		return 0
+	else
+		return 1
+	fi
+}
+
 
 # Fonction premettant de convertir la date en timestamp
 function dateToTimestamp {
@@ -194,6 +235,7 @@ function dateToTimestamp {
 	echo "$year$month$day$hour$minute$seconde"
 }
 
+
 # Fonction permettant d'ajouter une connexion dans le fichier de connexion
 function addConnexion {
 	argCheck $# 2
@@ -210,6 +252,7 @@ function addConnexion {
 	
 }
 
+
 # Fonction permettant de supprimer une connexion dans le fichier de connexion
 function removeConnexion {
 	argCheck $# 2
@@ -225,6 +268,7 @@ function removeConnexion {
 	text=$(grep "$terminal;$user;$machine" $fichier_connexion | tail -1)
 	sed -i "/$text/d" $fichier_connexion
 }
+
 
 # Fonction permettant de mettre à jour les connexions dans le fichier connexion
 function updateConnexion {
@@ -251,33 +295,15 @@ function updateConnexion {
 	sed -i "s/$text/$terminal;$user;$machine;$date/" $fichier_machine
 
 	return 1
-
-	
 }
 
 
 function connexion {
 	# Demande comme argument : 
-	#	1) la commande -connect ou -admin
-	#	2) le nom d'utilisateur avec lequel l'utilisateur veut se connecter, 
-	#	3) le nom de la machine à laquelle il veut se connecter
-	if [[ $1 == "-admin" ]] ; then
-		argCheck $# 1
-		if [[ $? -eq 1 ]] ; then
-			$user="admin"
-			$machine="hostroot"
-		else
-			return 0
-		fi
-	else
-		argCheck $# 3
-		if [[ $? -eq 1 ]] ; then
-			$user="$2"
-			$machine="$3"
-		else
-			return 0
-		fi
-	fi
+	#	1) le nom d'utilisateur avec lequel l'utilisateur veut se connecter, 
+	#	2) le nom de la machine à laquelle il veut se connecter
+	user=$1
+	machine=$2
 
 	# On vérifie que l'utilisateur existe
 	userCheck $user
@@ -306,9 +332,6 @@ function connexion {
 	# On ajoute la connexion dans le fichier de connexion
 	addConnexion $user $machine
 
-	# On piège toutes les sorties de la commande, afin de pouvoir procéder au logout
-	trap logout EXIT
-
 	# On lance la boucle de commande, qui permettra à l'utilisateur de rentrer des commandes
 	while true; do
 		read -p "$user@$machine> " commande
@@ -324,8 +347,15 @@ function connexion {
 		else
 			updateConnexion $user $machine
 			if [ $? -eq 1 ]; then
-				logout 2 $user $machine
+				new=$(logout 1 $user $machine)
+				if [[ $new == "Sorti" ]] ; then
+					break
+				else
+					user=$(echo $new | cut -d ";" -f 1)
+					machine=$(echo $new | cut -d ";" -f 2)
+				fi
 			fi
+			readSavedMessage $user
 			appelCommande $command "$@"
 		fi
 		
@@ -333,6 +363,8 @@ function connexion {
 	
 }
 
+
+# Fonction permettant à l'utilisateur de lancer une commande
 function appelCommande {
 	commande=$1
 	shift 
@@ -345,9 +377,11 @@ function appelCommande {
 	fi
 }
 
+
 function commandeInconnue {
 	echo "Commande inconnue : $1" > $(tty)
 }
+
 
 # Fonction permettant de déconnecter l'utilisateur
 function logout {
@@ -357,31 +391,30 @@ function logout {
 
 	echo "Déconnexion de $user@$machine" > $(tty)
 
-	
 	if [[ $option -eq 1 ]] ; then
 		removeConnexion $user $machine
-		if [[ -z $(grep "$(tty);" $fichier_connexion) ]] ; then
+		if [[ -z $(grep "$(tty | sed 's/\//_/g');" $fichier_connexion) ]] ; then
 			echo "Vous allez être déconnecté du réseau de machine virtuelle." > $(tty)
 			echo "Sorti"
 		else 
-			$newUser=$(grep "$terminal;" $fichier_connexion | tail -1 | cut -d ";" -f 2)
-			$newMachine=$(grep "$terminal;" $fichier_connexion | tail -1 | cut -d ";" -f 3)
+			newUser=$(grep "$terminal;" $fichier_connexion | tail -1 | cut -d ";" -f 2)
+			newMachine=$(grep "$terminal;" $fichier_connexion | tail -1 | cut -d ";" -f 3)
 			echo "$newUser;$newMachine"
 		fi
 	elif [[ $option -eq 2 ]] ; then
-		if [[ -z $(grep "$(tty);" $fichier_connexion) ]] ; then
+		if [[ -z $(grep "$(tty | sed 's/\//_/g');" $fichier_connexion) ]] ; then
 			echo "Vous allez être déconnecté du réseau de machine virtuelle." > $(tty)
 			echo "Sorti"
 		else 
-			$newUser=$(grep "$terminal;" $fichier_connexion | tail -1 | cut -d ";" -f 2)
-			$newMachine=$(grep "$terminal;" $fichier_connexion | tail -1 | cut -d ";" -f 3)
+			newUser=$(grep "$terminal;" $fichier_connexion | tail -1 | cut -d ";" -f 2)
+			newMachine=$(grep "$terminal;" $fichier_connexion | tail -1 | cut -d ";" -f 3)
 
 			if [[ $newMachine != $machine ]] ; then
 				echo "La machine $machine n'existe pas. Vous allez être déconnecté." > $(tty)
 			else [[ $newUser != $user ]] ; then
 				echo "L'utilisateur $user n'existe pas. Vous allez être déconnecté." > $(tty)
 			fi
-			
+
 			echo "$newUser;$newMachine"
 		fi
 	fi
