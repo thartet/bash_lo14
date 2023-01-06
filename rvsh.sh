@@ -367,13 +367,28 @@ function connexion {
 # Fonction permettant à l'utilisateur de lancer une commande
 function appelCommande {
 	commande=$1
-	shift 
-	if [ "$(type -t $commande)" = "function" ]; then
-		"commande-$commande" "$@"
-	elif [ -z "$commande" ]; then
-		echo
+	shift
+	if [ -z "$commande" ]; then
+		echo ""
 	else
-		commandeInconnue $commande
+		case $commande in
+			"rconnect")
+				commande-rconnect "$@";;
+			"su")
+				commande-su "$@";;
+			"write")
+				commande-write "$@";;
+			"host")
+				commande-host "$@";;
+			"user")
+				commande-user "$@";;
+			"wall")
+				commande-wall "$@";;
+			"afinger")
+				commande-afinger "$@";;
+			*)
+				echo "Commande inconnue";;
+		esac
 	fi
 }
 

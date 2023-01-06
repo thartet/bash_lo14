@@ -291,7 +291,7 @@ function readSavedMessage {
 function commande-afinger {
 	# Demande comme argument : 
 	#	1) le nom d'utilisateur dont l'utilisateur veut modifier les informations complémentaires
-	argCheck $# 2
+	argCheck $# 1
 	if [ $? -ne 1 ]; then
 		return 0
 	fi
@@ -312,9 +312,9 @@ function commande-afinger {
 
 	# On demande à l'utilisateur de modifier les informations complémentaires
 	# Le nom :
-	read -p "Changer le prénom et Nom de l'utilisateur $user ? (y/n) " reponse
+	read -p "Changer le prénom et nom de l'utilisateur $user ? (y/n) " reponse
 	while [ $reponse != "y" ] && [ $reponse != "n" ]; do
-		read -p "Changer le prénom et Nom de l'utilisateur $user ? (y/n) " reponse
+		read -p "Changer le prénom et nom de l'utilisateur $user ? (y/n) " reponse
 	done
 	if [[ $reponse == "y" ]]; then
 		read -p "Nouveau nom : " nom
@@ -327,4 +327,6 @@ function commande-afinger {
 	if [[ $reponse == "y" ]]; then
 		read -p "Nouvel email : " email
 	fi
+
+	sed -i "s/^$user;\(.*\);.*;.*;\(.*\)$/$user;\1;$nom;$email;\2/" $fichier_user
 }
