@@ -51,8 +51,49 @@ function dateToTimestamp {
 	echo "$year$month$day$hour$minute$seconde"
 }
 
-date=$(dateToTimestamp)
 
-echo "$(grep "$terminal;$user;$machine" connexion | tail -1)"
-echo "$terminal;$user;$machine;$date"
-sed -i "s/$(grep "$terminal;$user;$machine" connexion | tail -1)/$terminal;$user;$machine;$date/" $fichier connexion
+
+# Fonction permettant de convertir le timestamp en date
+function timestampToDate {
+    timestamp=$1
+    year=$(echo $timestamp | cut -c 1-4)
+    month=$(echo $timestamp | cut -c 5-6)
+    day=$(echo $timestamp | cut -c 7-8)
+    hour=$(echo $timestamp | cut -c 9-10)
+    minute=$(echo $timestamp | cut -c 11-12)
+    seconde=$(echo $timestamp | cut -c 13-14)
+    
+    case $month in
+        01)
+            month=Jan;;
+        02)
+            month=Feb;;
+        03)
+            month=Mar;;
+        04)
+            month=Apr;;
+        05)
+            month=May;;
+        06)
+            month=Jun;;
+        07)
+            month=Jul;;
+        08)
+            month=Aug;;
+        09)
+            month=Sep;;
+        10)
+            month=Oct;;
+        11)
+            month=Nov;;
+        12)
+            month=Dec;;
+    esac
+    
+    echo "$day $month $year $hour:$minute:$seconde"
+}
+
+ligne=$(cat $fichier_connexion | tail -1)
+date=$(echo $ligne | cut -d ";" -f 4)
+date=$(timestampToDate $date)
+echo "Date : $date"

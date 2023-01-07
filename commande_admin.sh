@@ -1,6 +1,6 @@
 # Fonction permettant de vérifier que le mot de passe administrateur est correct
 function adminCheck {
-    read -r -p "Entrez le mot de passe administrateur : " password
+    read -sp "Entrez le mot de passe administrateur : " password
     admin_password=$(grep "admin" $fichier_user | cut -d ";" -f2)
     if [ "$password" == "$admin_password" ]; then
         return 1
@@ -280,7 +280,7 @@ function readSavedMessage {
 		echo "Aucun message reçu" > "$(tty)"
 	else
 		echo "Message reçu : " > "$(tty)"
-		echo $texte | cut -d ";" -f 5  | sed 's/¤/\n/g' > "$(tty)"
+		echo $texte | cut -d ";" -f 5  | sed 's/¤/\n/g'
 	fi
 }
 

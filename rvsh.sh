@@ -117,7 +117,8 @@ function accessCheck {
 				if [ $machine == $(echo $ligne | sed 's/^\(.*\);.*$/\1/g') ]; then # On trouve la machine dans le fichier machine
 					access=$(echo $ligne | sed 's/^.*;\(.*\)$/\1/g' | sed "s/^.*,$user,.*$/,$user,/g") ; # On récupère sa liste d'accès et on essaie d'y trouver le nom d'utilisateur avec lequel l'utilisateur veut accéder à la machine
 					if [ ",$user," == $access ]; then 
-						echo "Accès authorisé à $machine" > "$(tty)"
+						terminal=$(tty)
+						echo "Accès authorisé à $machine" > "$terminal"
 						return 1;
 					fi
 				fi
@@ -346,8 +347,6 @@ function connexion {
 					machine=$(echo $new | cut -d ";" -f 2)
 				fi
 			fi
-			echo "commande : $commande"
-			echo "appelCommande $commande"
 			appelCommande $commande
 		fi
 		
@@ -378,6 +377,8 @@ function appelCommande {
 				commande-wall "$@";;
 			afinger)
 				commande-afinger "$@";;
+			*)
+				commandeInconnue "$@";;
 		esac
 	fi
 }
