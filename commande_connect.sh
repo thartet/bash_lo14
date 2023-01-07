@@ -78,11 +78,11 @@ function commande-write {
         dest_terminal=$(echo $ligne | cut -d ";" -f 1 | sed 's/\//_/g')
         if [[ $ligne == $(grep "$dest_terminal" $fichier_connexion | tail -1) ]] ; then # On vérifie que c'est la dernière connexion du terminal (qu'il n'est pas connecté à un autre utilisateur et/ou machine)
 			# On envoie le message aux utilisateurs connectés à la machine
-            echo "De $user@$machine à $dest_user@$dest_machine : $message" > $(echo $dest_terminal | sed 's/_/\//g')
+            echo "De $user@$machine à $dest_user@$dest_machine : $message" > "$(echo $dest_terminal | sed 's/_/\//g')"
         fi
  	done
 
-	echo "Message envoyé" > $(tty)
+	echo "Message envoyé" > "$(tty)"
 }
 
 

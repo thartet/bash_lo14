@@ -276,11 +276,11 @@ function readSavedMessage {
 
 	# On récupère les messages sauvegardés et les affiche
 	texte=$(grep "$1;" $fichier_user | cut -d ";" -f 5)
-	if [[ $texte == "" ]] ; then
-		echo "Aucun message reçu" > $(tty)
+	if [[ $texte == "¤" ]] ; then
+		echo "Aucun message reçu" > "$(tty)"
 	else
-		echo "Message reçu : " > $(tty)
-		echo $texte | cut -d ";" -f 5  | sed 's/¤/\n/g' > $(tty) 
+		echo "Message reçu : " > "$(tty)"
+		echo $texte | cut -d ";" -f 5  | sed 's/¤/\n/g' > "$(tty)"
 	fi
 }
 
